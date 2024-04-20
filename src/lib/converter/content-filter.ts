@@ -1,0 +1,97 @@
+const content_filter = {
+  list: [
+    {
+      domain: /.*/,
+      remove: [/\[¶\]\(#[^\s]+\s+"[^"]+"\)/g],
+      replace: [
+        {
+          find: /\[([^\]]*)\]\(\/\/([^\)]*)\)/g,
+          replacement: "[$1](https://$2)",
+        },
+      ],
+    },
+    {
+      domain: /.*\.wikipedia\.org/,
+      remove: [
+        /\*\*\[\^\]\(#cite_ref[^\)]+\)\*\*/g,
+        /(?:\\\[)?\[edit\]\([^\s]+\s+"[^"]+"\)(?:\\\])?/gi,
+        /\^\s\[Jump up to[^\)]*\)/gi,
+        /\[[^\]]*\]\(#cite_ref[^\)]+\)/g,
+        /\[\!\[Edit this at Wikidata\].*/g,
+      ],
+      replace: [
+        {
+          find: /\(https:\/\/upload.wikimedia.org\/wikipedia\/([^\/]+)\/thumb\/([^\)]+\..{3,4})\/[^\)]+\)/gi,
+          replacement: "(https://upload.wikimedia.org/wikipedia/$1/$2)",
+        },
+        {
+          find: /\n(.+)\n\-{32,}\n/gi,
+          replacement: (match: string, title: string) => {
+            return "\n" + title + "\n" + "-".repeat(title.length) + "\n";
+          },
+        },
+      ],
+    },
+    {
+      domain: /(?:.*\.)?medium\.com/,
+      replace: [
+        {
+          find: "(https://miro.medium.com/max/60/",
+          replacement: "(https://miro.medium.com/max/600/",
+        },
+      ],
+    },
+    {
+      domain: /(?:.*\.)?stackoverflow\.com/,
+      remove: [/\* +Links(.|\r|\n)*Three +\|/g],
+    },
+  ],
+
+  filter: function (url: string | URL, data: string, ignore_links = false) {
+    let domain = "";
+    let base_address = "";
+    if (url) {
+      url = new URL(url);
+      if (url) {
+        base_address = url.protocol + "//" + url.hostname;
+        domain = url.hostname;
+      }
+    }
+
+    for (let i = 0; i < this.list.length; i++) {
+      if (domain.match(this.list[i].domain)) {
+        if (this.list[i].remove) {
+          for (let j = 0; j < this?.list[i]?.remove?.length!; j++) {
+            data = data.replaceAll(this?.list![i]?.remove![j], "");
+          }
+        }
+        if (this.list[i].replace) {
+          for (let j = 0; j < this?.list![i]?.replace?.length!; j++) {
+            data = data.replaceAll(
+              this?.list[i]?.replace![j]?.find,
+              this?.list![i].replace![j].replacement as string,
+            );
+          }
+        }
+      }
+    }
+
+    // make relative URLs absolute
+    data = data.replaceAll(
+      /\[([^\]]*)\]\(\/([^\/][^\)]*)\)/g,
+      (match, title, address) => {
+        return "[" + title + "](" + base_address + "/" + address + ")";
+      },
+    );
+
+    // remove inline links and refs
+    if (ignore_links) {
+      data = data.replaceAll(/\[\[?([^\]]+\]?)\]\([^\)]+\)/g, "$1");
+      data = data.replaceAll(/[\\\[]+([0-9]+)[\\\]]+/g, "[$1]");
+    }
+
+    return data;
+  },
+};
+
+export default content_filter;
